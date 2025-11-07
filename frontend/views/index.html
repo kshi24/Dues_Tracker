@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TAMID Dues Tracker</title>
+  </head>
+  <body>
+    <div style="font-family:system-ui, -apple-system, Roboto, Arial; padding:24px;">
+      <h1>TAMID Dues Tracker (minimal)</h1>
+      <p id="status">Checking backend status…</p>
+      <p>
+        This is a minimal starter page — the backend API is at <code>/api/status</code>.
+      </p>
+    </div>
+
+    <script>
+      // Fetch the minimal API to show the connection is working
+      fetch('/api/status')
+        .then(r => r.json())
+        .then(j => {
+          document.getElementById('status').textContent = `Backend: ${j.status} — ${j.message}`;
+        })
+        .catch(e => {
+          document.getElementById('status').textContent = 'Backend: unreachable';
+          console.error(e);
+        });
+    </script>
+  </body>
+</html>
