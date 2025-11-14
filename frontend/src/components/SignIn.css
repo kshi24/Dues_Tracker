@@ -1,4 +1,6 @@
-.SignIn {
+@import "tailwindcss";
+
+/* .SignIn {
     display: flex;
     height: 100vh;
     width: 100%;
@@ -57,3 +59,4 @@
 .input-boxes button:hover {
     background-color: #98d9fc;
 }
+*/
