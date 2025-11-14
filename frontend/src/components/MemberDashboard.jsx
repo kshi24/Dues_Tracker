@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { data, useNavigate } from 'react-router-dom';
 import { CheckCircle, DollarSign, Calendar, CreditCard } from 'lucide-react';
-import './Dashboard.css'
+import '../styles.css'
 
 
 export default function MemberDashboard() {
@@ -17,7 +17,7 @@ export default function MemberDashboard() {
 
 
     return (
-        <div className="min-h-screen w-full bg-gradient-to-r from-blue-200 to-cyan-200 p-10 absolute top-0 left-0">
+        <div className="min-h-screen w-full bg-gradient-to-r from-blue-200 to-cyan-200 p-15 absolute top-0 left-0">
             <div className="mx-auto rounded-xl bg-white drop-shadow-lg p-6 mb-5">
                 <h1 className='font-bold text-2xl mb-2'>Welcome back, {name}!</h1>
                 <p className="text-gray-500 dark:text-gray-400">Here's your membership overview</p>

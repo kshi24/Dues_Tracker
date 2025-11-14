@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.svg'
+import '../styles.css'
 
 export default function SignIn() {
     const navigate = useNavigate();
