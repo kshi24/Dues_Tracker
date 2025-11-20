@@ -3,7 +3,7 @@ uvicorn[standard]
 sqlalchemy
 pydantic
 python-dotenv
-fastapi
-uvicorn
-sqlalchemy
-pydantic
+requests
+apscheduler
+squareup
+slack-sdk

@@ -1,64 +1,130 @@
-import React, { useState } from 'react'
-import { data, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom';
 import { CheckCircle, DollarSign, Calendar, CreditCard, ArchiveIcon, Bell } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
 import '../styles.css'
 
 export default function AdminDashboard() {
-    let status = "None"
+    const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
+    const [members, setMembers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
 
+    useEffect(() => {
+        // Check if user is admin
+        const currentUser = localStorage.getItem('currentUser');
+        if (!currentUser) {
+            navigate('/');
+            return;
+        }
 
-    // sample data needs to be replaced
-    const [members, setMembers] = useState([
-        { id: 1, name: 'Alex Johnson', class: 'Tav', amount: 180, status: 'paid' },
-        { id: 2, name: 'Sarah Chen', class: 'Shin', dueDate: '2025-11-20', amount: 180, status: 'paid' },
-        { id: 3, name: 'Michael Brown', class: 'Tav', dueDate: '2025-10-30', amount: 180, status: 'overdue' },
-        { id: 4, name: 'Emily Davis', class: 'Shin', dueDate: '2025-12-01', amount: 150, status: 'paid' },
-        { id: 5, name: 'James Wilson', class: 'Kuf', dueDate: '2025-11-10', amount: 180, status: 'overdue' },
-        { id: 6, name: 'Lisa Anderson', class: 'Tav', dueDate: '2025-12-20', amount: 180, status: 'pending' },
-    ]);
+        const userData = JSON.parse(currentUser);
+        if (userData.role !== 'Treasurer' && userData.role !== 'Admin') {
+            navigate('/dashboard');
+            return;
+        }
+
+        fetchMembers();
+    }, [navigate]);
+
+    const fetchMembers = async () => {
+        try {
+            const response = await fetch('http://localhost:8000/api/members');
+            const data = await response.json();
+            setMembers(data);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error fetching members:', error);
+            setLoading(false);
+        }
+    };
 
     const stats = {
         totalMembers: members.length,
-        paidMembers: members.filter(member => member.status === 'paid').length,
-        unpaidMembers: members.length - members.filter(member => member.status === 'paid').length,
+        paidMembers: members.filter(member => member.payment_status === 'Paid').length,
+        unpaidMembers: members.length - members.filter(member => member.payment_status === 'Paid').length,
     };
 
-    const filteredMembers = members.filter((member) => member.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredMembers = members.filter((member) => 
+        member.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-    const sendReminder = (memberName) => {
-        // API call to the backend
-    }
+    const sendReminder = async (memberId) => {
+        try {
+            const response = await fetch(`http://localhost:8000/api/reminders/individual/${memberId}`, {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert('Reminder sent successfully!');
+            }
+        } catch (error) {
+            console.error('Error sending reminder:', error);
+            alert('Failed to send reminder');
+        }
+    };
 
-    const sendBulkReminders = () => {
-        const overdueMembers = members.filter(member => member.status === 'overdue')
-        overdueMembers.forEach(member => {
-            sendReminder(member.name);
-        });
-    }
+    const sendBulkReminders = async () => {
+        setSending(true);
+        try {
+            const response = await fetch('http://localhost:8000/api/reminders/bulk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    send_to_all_unpaid: true
+                })
+            });
+            const result = await response.json();
+            alert(`Reminders sent to ${result.total_sent} members!`);
+        } catch (error) {
+            console.error('Error sending bulk reminders:', error);
+            alert('Failed to send bulk reminders');
+        } finally {
+            setSending(false);
+        }
+    };
 
     const getStatusColor = (status) => {
-        switch (status) {
+        switch (status.toLowerCase()) {
             case 'paid': return 'text-green-600 bg-green-50';
             case 'overdue': return 'text-red-600 bg-red-50';
             case 'pending': return 'text-yellow-600 bg-yellow-50';
             default: return 'text-gray-600 bg-gray-50';
         }
     };
-    const updateStatus = (memberId, newStatus) => {
-        const updatedMembers = members.map(member => {
-            if (member.id === memberId) {
-                return { ...member, status: newStatus };
+
+    const updateStatus = async (memberId, newStatus) => {
+        try {
+            const response = await fetch(`http://localhost:8000/api/members/${memberId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    payment_status: newStatus
+                })
+            });
+            
+            if (response.ok) {
+                // Refresh members list
+                fetchMembers();
             }
-            return member;
-        });
-        setMembers(updatedMembers);
+        } catch (error) {
+            console.error('Error updating status:', error);
+            alert('Failed to update status');
+        }
     };
 
+    // Calculate financial data from members
+    const totalExpected = members.reduce((sum, m) => sum + m.dues_amount, 0);
+    const totalCollected = members.reduce((sum, m) => sum + m.amount_paid, 0);
+    const outstanding = totalExpected - totalCollected;
+
     const [financialData] = useState({
-        totalIncome: 8460,
+        totalIncome: totalCollected,
         totalExpenses: 5200,
         budget: 12000,
         monthlyData: [
@@ -70,10 +136,19 @@ export default function AdminDashboard() {
         ]
     });
 
+    if (loading) {
+        return (
+            <div className="min-h-screen w-full bg-gradient-to-r from-slate-100 to-slate-200 flex items-center justify-center">
+                <div className="text-2xl font-bold text-gray-700">Loading...</div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen w-full bg-gradient-to-r from-slate-100 to-slate-200 p-10 absolute top-0 left-0">
             <h1 className='font-bold text-3xl mb-2'>Admin Dashboard</h1>
             <p className='text-gray-500 text-lg mb-5'>Manage member dues and track payments</p>
+            
             <div className='flex flex-col md:flex-row gap-4 mb-5'>
                 <div className="flex-1 rounded-xl bg-white drop-shadow-lg p-6">
                     <p className='text-gray-500 text-sm'>Active Members</p>
@@ -89,32 +164,30 @@ export default function AdminDashboard() {
                     <p className='text-gray-500 text-sm'>Unpaid Members</p>
                     <h1 className="font-bold text-2xl">{stats.unpaidMembers}</h1>
                 </div>
-
             </div>
 
-            <h1 className='font-bold text-2xl mb-5'>Finanical Overview</h1>
+            <h1 className='font-bold text-2xl mb-5'>Financial Overview</h1>
 
             <div className='flex flex-col md:flex-row gap-4 mb-5'>
                 <div className="flex-1 rounded-xl bg-white drop-shadow-lg p-6">
-                    <p className="text-gray-500 text-sm">Total Income</p>
-                    <h1 className='font-bold text-2xl text-green-500'>${financialData.totalIncome.toLocaleString()}</h1>
+                    <p className="text-gray-500 text-sm">Total Expected</p>
+                    <h1 className='font-bold text-2xl text-blue-500'>${totalExpected.toFixed(2)}</h1>
                 </div>
 
                 <div className="flex-1 rounded-xl bg-white drop-shadow-lg p-6">
-                    <h1 className="text-gray-500 text-sm">Total Expenses</h1>
-                    <p className='font-bold text-2xl text-red-500'>${financialData.totalExpenses.toLocaleString()}</p>
+                    <h1 className="text-gray-500 text-sm">Total Collected</h1>
+                    <p className='font-bold text-2xl text-green-500'>${totalCollected.toFixed(2)}</p>
                 </div>
 
                 <div className="flex-1 rounded-xl bg-white drop-shadow-lg p-6">
-                    <h1 className="text-gray-500 text-sm">Net Income</h1>
-                    <p className='font-bold text-2xl text-blue-500'>${(financialData.totalIncome - financialData.totalExpenses).toLocaleString()}</p>
+                    <h1 className="text-gray-500 text-sm">Outstanding</h1>
+                    <p className='font-bold text-2xl text-red-500'>${outstanding.toFixed(2)}</p>
                 </div>
 
                 <div className="flex-1 rounded-xl bg-white drop-shadow-lg p-6">
-                    <h1 className="text-gray-500 text-sm">Budget Remaning</h1>
+                    <h1 className="text-gray-500 text-sm">Budget Remaining</h1>
                     <p className='font-bold text-2xl text-purple-500'>${(financialData.budget - financialData.totalExpenses).toLocaleString()}</p>
                 </div>
-
             </div>
 
             <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6'>
@@ -163,12 +236,22 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-
-
             <h1 className='font-bold text-3xl mb-2'>Members</h1>
-            <div className='flex-1'>
-                <input type="text" placeholder="Search members..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg mb-4 mr-4" />
-                <button className='px-3 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition cursor-pointer' onClick={sendBulkReminders}>Send Bulk Reminders</button>
+            <div className='flex-1 mb-4'>
+                <input 
+                    type="text" 
+                    placeholder="Search members..." 
+                    value={searchTerm} 
+                    onChange={(e) => setSearchTerm(e.target.value)} 
+                    className="px-4 py-2 border border-gray-300 rounded-lg mb-4 mr-4" 
+                />
+                <button 
+                    className='px-3 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition cursor-pointer disabled:opacity-50' 
+                    onClick={sendBulkReminders}
+                    disabled={sending}
+                >
+                    {sending ? 'Sending...' : 'Send Bulk Reminders'}
+                </button>
             </div>
 
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -178,7 +261,8 @@ export default function AdminDashboard() {
                             <tr>
                                 <th className="px-6 py-4 text-left text-xs font-semi-bold text-gray-500">MEMBER</th>
                                 <th className="px-6 py-4 text-left text-xs font-semi-bold text-gray-500">CLASS</th>
-                                <th className="px-6 py-4 text-left text-xs font-semi-bold text-gray-500">AMOUNT</th>
+                                <th className="px-6 py-4 text-left text-xs font-semi-bold text-gray-500">AMOUNT DUE</th>
+                                <th className="px-6 py-4 text-left text-xs font-semi-bold text-gray-500">PAID</th>
                                 <th className="px-6 py-4 text-left text-xs font-semi-bold text-gray-500">ACTIONS</th>
                             </tr>
                         </thead>
@@ -186,30 +270,28 @@ export default function AdminDashboard() {
                             {filteredMembers.map((member) => (
                                 <tr className='border-b border-gray-200 hover:bg-gray-50' key={member.id}>
                                     <td className="px-6 py-4 font-semibold">{member.name}</td>
-                                    <td className="px-6 py-4 text-gray-400">{member.class}</td>
-                                    <td className="px-6 py-4 font-semibold">${member.amount}</td>
+                                    <td className="px-6 py-4 text-gray-400">{member.role}</td>
+                                    <td className="px-6 py-4 font-semibold">${(member.dues_amount - member.amount_paid).toFixed(2)}</td>
+                                    <td className="px-6 py-4 font-semibold text-green-600">${member.amount_paid.toFixed(2)}</td>
                                     <td className='px-6 py-4'>
                                         <div className="flex items-center gap-3">
-
                                             <select
-                                                value={member.status}
+                                                value={member.payment_status}
                                                 onChange={(e) => updateStatus(member.id, e.target.value)}
-                                                className={`p-2 rounded-lg text-sm font-semibold cursor-pointer capitalize w-32 ${getStatusColor(member.status)}`}
+                                                className={`p-2 rounded-lg text-sm font-semibold cursor-pointer capitalize w-32 ${getStatusColor(member.payment_status)}`}
                                             >
-                                                <option value="paid">Paid</option>
-                                                <option value="pending">Pending</option>
-                                                <option value="overdue">Overdue</option>
+                                                <option value="Paid">Paid</option>
+                                                <option value="Pending">Pending</option>
+                                                <option value="Overdue">Overdue</option>
                                             </select>
                                             <button
-                                                onClick={() => sendReminder(member.name)}
+                                                onClick={() => sendReminder(member.id)}
                                                 className="p-2 cursor-pointer bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition shadow-sm"
                                             >
                                                 <Bell size={20} color="#ffffffff" />
                                             </button>
                                         </div>
-
                                     </td>
-
                                 </tr>
                             ))}
                         </tbody>
@@ -217,6 +299,5 @@ export default function AdminDashboard() {
                 </div>
             </div>
         </div>
-
     );
 }
