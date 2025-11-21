@@ -44,4 +44,4 @@ frontend/build/
 
 # Misc
 .cache/
-.temp/
+.temp/node_modules/
