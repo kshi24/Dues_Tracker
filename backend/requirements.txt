@@ -7,3 +7,5 @@ requests
 apscheduler
 squareup
 slack-sdk
+passlib[bcrypt]
+python-jose[cryptography]
