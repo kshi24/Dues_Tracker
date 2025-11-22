@@ -1,29 +1,89 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { data, useNavigate } from 'react-router-dom';
 import { CheckCircle, DollarSign, Calendar, CreditCard, ArchiveIcon, Bell } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 import '../styles.css'
 
+const API_URL = 'http://localhost:8000';
+
+
 export default function AdminDashboard() {
     let status = "None"
     const [searchTerm, setSearchTerm] = useState('');
 
 
-    // sample data needs to be replaced
-    const [members, setMembers] = useState([
-        { id: 1, name: 'Alex Johnson', class: 'Tav', amount: 180, status: 'paid' },
-        { id: 2, name: 'Sarah Chen', class: 'Shin', dueDate: '2025-11-20', amount: 180, status: 'paid' },
-        { id: 3, name: 'Michael Brown', class: 'Tav', dueDate: '2025-10-30', amount: 180, status: 'overdue' },
-        { id: 4, name: 'Emily Davis', class: 'Shin', dueDate: '2025-12-01', amount: 150, status: 'paid' },
-        { id: 5, name: 'James Wilson', class: 'Kuf', dueDate: '2025-11-10', amount: 180, status: 'overdue' },
-        { id: 6, name: 'Lisa Anderson', class: 'Tav', dueDate: '2025-12-20', amount: 180, status: 'pending' },
-    ]);
+    const [members, setMembers] = useState([]);
 
-    const stats = {
-        totalMembers: members.length,
-        paidMembers: members.filter(member => member.status === 'paid').length,
-        unpaidMembers: members.length - members.filter(member => member.status === 'paid').length,
+    const [stats, setStats] = useState({
+        totalMembers: 0,
+        paidMembers: 0,
+        unpaidMembers: 0
+    });
+
+
+    const [financialData, setFinancialData] = useState({
+        totalIncome: 0,
+        totalExpenses: 0,
+        budget: 12000,
+        monthlyData: []
+    });
+
+
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetchMembers();
+        fetchStats();
+    }, []);
+
+    const fetchMembers = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch(`${API_URL}/api/members`)
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch members');
+            }
+            const data = await response.json();
+            setMembers(data);
+            setError(null);
+        }
+        catch (err) {
+            console.error('Error fetching members:', err);
+            setError('Failed to load members. Make sure the backend is running.');
+        }
+        finally {
+            setLoading(false);
+        }
+    }
+
+    const fetchStats = async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/stats`);
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch stats');
+            }
+
+            const data = await response.json();
+
+            setStats({
+                totalMembers: data.total_members,
+                paidMembers: data.paid_members,
+                unpaidMembers: data.pending_members + data.overdue_members
+            });
+
+            setFinancialData(prev => ({
+                ...prev,
+                totalIncome: data.total_collected,
+                totalExpenses: 0,
+                budget: 12000
+            }));
+        } catch (err) {
+            console.error('Error fetching stats:', err);
+        }
     };
 
     const filteredMembers = members.filter((member) => member.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -81,28 +141,65 @@ export default function AdminDashboard() {
             default: return 'text-gray-600 bg-gray-50';
         }
     };
-    const updateStatus = (memberId, newStatus) => {
-        const updatedMembers = members.map(member => {
-            if (member.id === memberId) {
-                return { ...member, status: newStatus };
+
+    const updateStatus = async (memberId, newStatus) => {
+        try {
+            const response = await fetch(`${API_URL}/api/members/${memberId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    payment_status: newStatus
+                })
+            });
+
+            if (response.ok) {
+                const updatedMember = await response.json();
+
+                setMembers(prevMembers =>
+                    prevMembers.map(member =>
+                        member.id === memberId ? updatedMember : member
+                    )
+                );
+
+                fetchStats();
+            } else {
+                alert('Failed to update status');
             }
-            return member;
-        });
-        setMembers(updatedMembers);
+        } catch (err) {
+            console.error('Error updating status:', err);
+            alert('Failed to update status. Check console for details.');
+        }
     };
 
-    const [financialData] = useState({
-        totalIncome: 8460,
-        totalExpenses: 5200,
-        budget: 12000,
-        monthlyData: [
-            { month: 'Aug', income: 1200, expenses: 800 },
-            { month: 'Sep', income: 1800, expenses: 1100 },
-            { month: 'Oct', income: 2100, expenses: 1300 },
-            { month: 'Nov', income: 1560, expenses: 1200 },
-            { month: 'Dec', income: 1800, expenses: 800 },
-        ]
-    });
+    if (loading) {
+        return (
+            <div className="min-h-screen w-full bg-gradient-to-r from-slate-100 to-slate-200 p-10 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                    <p className="text-gray-600 text-lg">Loading dashboard...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen w-full bg-gradient-to-r from-slate-100 to-slate-200 p-10 flex items-center justify-center">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+                    <h2 className="text-red-800 font-bold text-xl mb-2">Connection Error</h2>
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <button
+                        onClick={fetchMembers}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen w-full bg-gradient-to-r from-slate-100 to-slate-200 p-10 absolute top-0 left-0">
