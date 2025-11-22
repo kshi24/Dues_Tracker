@@ -88,31 +88,30 @@ export default function AdminDashboard() {
 
     const filteredMembers = members.filter((member) => member.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const sendReminder = async (memberId, memberName) => {
+    const sendReminder = async (memberName) => {
         try {
-            const response = await fetch(`${API_URL}/api/reminders/individual/${memberId}`, {
+            const response = await fetch('http://localhost:8000/api/reminders/individual/1', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 }
             });
-
+            const data = await response.json();
+            
             if (response.ok) {
-                alert(`Reminder sent to ${memberName}!`);
+                alert(`✅ Reminder sent to ${memberName}`);
             } else {
-                const error = await response.json();
-                alert(`Failed to send reminder: ${error.detail || 'Unknown error'}`);
+                alert(`❌ Failed to send reminder: ${data.detail || data.message}`);
             }
         } catch (err) {
             console.error('Error sending reminder:', err);
-            alert('Failed to send reminder. Check console for details.');
+            alert('❌ Connection error. Make sure backend is running on http://localhost:8000');
         }
-    };
-
+    }
 
     const sendBulkReminders = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/reminders/bulk`, {
+            const response = await fetch('http://localhost:8000/api/reminders/bulk', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -121,18 +120,18 @@ export default function AdminDashboard() {
                     send_to_all_unpaid: true
                 })
             });
-
+            const data = await response.json();
+            
             if (response.ok) {
-                const result = await response.json();
-                alert(`Bulk reminders sent to ${result.successful} members!`);
+                alert(`✅ Sent reminders to ${data.successful} members!`);
             } else {
-                alert('Failed to send bulk reminders');
+                alert(`❌ Failed to send bulk reminders: ${data.detail}`);
             }
         } catch (err) {
             console.error('Error sending bulk reminders:', err);
-            alert('Failed to send bulk reminders. Check console for details.');
+            alert('❌ Connection error. Make sure backend is running on http://localhost:8000');
         }
-    };
+    }
 
     const getStatusColor = (status) => {
         switch (status) {
